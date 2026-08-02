@@ -1,37 +1,124 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Airshare - Share Files via Link</title>
-  <link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Airshare</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;background:#f0f2f5;display:flex;justify-content:center;padding:20px}
+ .card{background:white;width:100%;max-width:480px;padding:30px;border-radius:18px;box-shadow:0 8px 25px rgba(0,0,0,0.1);text-align:center;margin-top:30px}
+  h1{font-size:28px}
+  p{color:#666;margin:10px 0 20px}
+ .box{border:2px dashed #bbb;border-radius:12px;padding:30px;cursor:pointer}
+ .box.dragover{border-color:#000;background:#fafafa}
+  #fileName{margin-top:10px;font-weight:bold;word-break:break-all}
+  #uploadBtn{width:100%;margin-top:20px;padding:14px;background:black;color:white;border:none;border-radius:10px;font-size:16px;cursor:pointer}
+  #uploadBtn:disabled{background:#ccc}
+  #loading{display:none;margin-top:20px}
+ .spinner{width:28px;height:28px;border:3px solid #eee;border-top:3px solid #000;border-radius:50%;animation:spin 1s linear infinite;margin:10px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #result{display:none;margin-top:20px;background:#e6ffe6;padding:15px;border-radius:10px;text-align:left}
+  #result a{word-break:break-all;color:#0066cc;font-weight:bold;display:block;margin:10px 0}
+  #linkInput{width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;margin-top:8px}
+  #copyBtn{width:100%;margin-top:8px;padding:10px;background:black;color:white;border:none;border-radius:6px;cursor:pointer}
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>Airshare ✈️</h1>
-    <p class="sub">Upload any file and get a shareable link</p>
+<div class="card">
+  <h1>Airshare ✈️</h1>
+  <p>Upload any file and get a shareable link</p>
 
-    <div class="upload-box" id="dropZone">
-      <input type="file" id="fileInput" hidden />
-      <div id="fileInfo">Click to select or drag file here</div>
-      <button id="browseBtn">Browse Files</button>
-    </div>
-
-    <button id="uploadBtn" disabled>Create Share Link</button>
-
-    <div id="result" class="hidden">
-      <h3>✅ Link Ready!</h3>
-      <div class="link-box">
-        <input type="text" id="linkInput" readonly />
-        <button id="copyBtn">Copy</button>
-      </div>
-    </div>
-
-    <div id="loading" class="hidden">
-      <div class="spinner"></div>
-      <p>Uploading...</p>
-    </div>
+  <div class="box" id="dropZone">
+    <input type="file" id="fileInput" hidden>
+    <div>📁 Click or drag file here</div>
+    <div id="fileName"></div>
   </div>
-  <script src="script.js"></script>
+
+  <button id="uploadBtn" disabled>Create Share Link</button>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <div>Uploading... please wait</div>
+  </div>
+
+  <div id="result">
+    <h3>✅ Link Generated!</h3>
+    <a id="linkA" href="#" target="_blank"></a>
+    <input id="linkInput" readonly>
+    <button id="copyBtn">Copy Link</button>
+  </div>
+</div>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const dropZone = document.getElementById('dropZone');
+const fileName = document.getElementById('fileName');
+const uploadBtn = document.getElementById('uploadBtn');
+const loading = document.getElementById('loading');
+const result = document.getElementById('result');
+const linkA = document.getElementById('linkA');
+const linkInput = document.getElementById('linkInput');
+
+let selectedFile = null;
+
+dropZone.onclick = () => fileInput.click();
+fileInput.onchange = e => setFile(e.target.files[0]);
+
+dropZone.ondragover = e => { e.preventDefault(); dropZone.classList.add('dragover'); };
+dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+dropZone.ondrop = e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  setFile(e.dataTransfer.files[0]);
+};
+
+function setFile(file){
+  if(!file) return;
+  selectedFile = file;
+  fileName.textContent = file.name + ` (${(file.size/1024/1024).toFixed(2)} MB)`;
+  uploadBtn.disabled = false;
+}
+
+uploadBtn.onclick = async () => {
+  if(!selectedFile) return;
+  loading.style.display = 'block';
+  result.style.display = 'none';
+  uploadBtn.disabled = true;
+  uploadBtn.textContent = 'Uploading...';
+
+  const fd = new FormData();
+  fd.append('file', selectedFile);
+
+  try{
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    const txt = await res.text();
+    let data;
+    try{ data = JSON.parse(txt); }catch{ throw new Error(txt.substring(0,300)); }
+
+    if(!res.ok) throw new Error(data.error || 'Upload failed');
+
+    // SHOW LINK - THIS WILL ALWAYS SHOW NOW
+    const finalUrl = data.url;
+    linkA.href = finalUrl;
+    linkA.textContent = finalUrl;
+    linkInput.value = finalUrl;
+    result.style.display = 'block';
+
+  }catch(err){
+    alert('FAILED: ' + err.message);
+  }finally{
+    loading.style.display = 'none';
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = 'Create Share Link';
+  }
+};
+
+document.getElementById('copyBtn').onclick = () => {
+  navigator.clipboard.writeText(linkInput.value);
+  document.getElementById('copyBtn').textContent = 'Copied!';
+  setTimeout(()=> document.getElementById('copyBtn').textContent='Copy Link', 1500);
+};
+</script>
 </body>
 </html>
