@@ -1,22 +1,31 @@
-import { neon } from '@neondatabase/serverless';
 import { getStore } from '@netlify/blobs';
 
 export default async (req) => {
   const slug = new URL(req.url).searchParams.get('slug');
-  const sql = neon(process.env.DATABASE_URL);
+  if (!slug) return new Response('No link', { status: 400 });
 
-  const row = await sql`SELECT s.id, f.original_name, f.mime_type FROM share_links s JOIN files f ON f.id = s.file_id WHERE s.slug = ${slug} LIMIT 1`;
-  if (!row[0]) return new Response('Link not found', { status: 404 });
+  try {
+    const store = getStore({
+      name: 'airshare-files',
+      consistency: 'strong'
+    });
 
-  const store = getStore('airshare-files');
-  const file = await store.getWithMetadata(slug, { type: 'arrayBuffer' });
+    const result = await store.getWithMetadata(slug, { type: 'arrayBuffer' });
 
-  await sql`UPDATE share_links SET download_count = download_count + 1 WHERE slug = ${slug}`;
-
-  return new Response(file.data, {
-    headers: {
-      'Content-Type': file.metadata.mimeType || 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="${file.metadata.originalName}"`
+    if (!result ||!result.data) {
+      return new Response(`<h1>File not found</h1><p>Slug: ${slug}</p>`, {
+        status: 404,
+        headers: { 'Content-Type': 'text/html' }
+      });
     }
-  });
+
+    return new Response(result.data, {
+      headers: {
+        'Content-Type': result.metadata?.type || 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${result.metadata?.name || 'file'}"`
+      }
+    });
+  } catch (e) {
+    return new Response('Download error: ' + e.message, { status: 500 });
+  }
 };
