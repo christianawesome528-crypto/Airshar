@@ -4,10 +4,5 @@
 
 [[redirects]]
   from = "/s/*"
-  to = "/.netlify/functions/download?slug=:splat"
-  status = 200
-
-[[redirects]]
-  from = "/api/upload"
-  to = "/.netlify/functions/upload"
+  to = "/.netlify/functions/download"
   status = 200
