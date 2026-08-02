@@ -11,7 +11,7 @@ let selectedFile = null;
 browseBtn.onclick = (e) => { e.stopPropagation(); fileInput.click(); };
 dropZone.onclick = () => fileInput.click();
 fileInput.onchange = (e) => handleFile(e.target.files[0]);
-dropZone.ondragover = (e) => { e.preventDefault(); };
+dropZone.ondragover = (e) => e.preventDefault();
 dropZone.ondrop = (e) => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); };
 
 function handleFile(file) {
@@ -22,17 +22,31 @@ function handleFile(file) {
 }
 
 uploadBtn.onclick = async () => {
+  if (!selectedFile) return;
   loading.classList.remove('hidden');
   result.classList.add('hidden');
+  uploadBtn.disabled = true;
+
   const formData = new FormData();
   formData.append('file', selectedFile);
-  const res = await fetch('/api/upload', { method: 'POST', body: formData });
-  const data = await res.json();
-  loading.classList.add('hidden');
-  if (data.url) {
+
+  try {
+    const res = await fetch('/api/upload', { method: 'POST', body: formData });
+    const text = await res.text(); // read as text first to catch HTML errors
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error(text.slice(0,200)); }
+
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+
     linkInput.value = data.url;
     result.classList.remove('hidden');
-  } else alert(data.error);
+  } catch (err) {
+    alert('ERROR: ' + err.message);
+    console.error(err);
+  } finally {
+    loading.classList.add('hidden');
+    uploadBtn.disabled = false;
+  }
 };
 
 document.getElementById('copyBtn').onclick = () => {
